@@ -24,6 +24,11 @@ const (
 	updateCacheTTL = 1200 // 20 minutes
 	githubRepo     = "Wei-Shaw/sub2api"
 
+	// When set, updates are delegated to a host-side updater instead of
+	// replacing the running binary in-place. This keeps customized Docker
+	// deployments on their own update path.
+	updateRequestFileEnv = "SUB2API_UPDATE_REQUEST_FILE"
+
 	// Security: allowed download domains for updates
 	allowedDownloadHost = "github.com"
 	allowedAssetHost    = "objects.githubusercontent.com"
@@ -72,6 +77,18 @@ type UpdateInfo struct {
 	Cached         bool         `json:"cached"`
 	Warning        string       `json:"warning,omitempty"`
 	BuildType      string       `json:"build_type"` // "source" or "release"
+	UpdateMode     string       `json:"update_mode,omitempty"`
+}
+
+type DockerUpdateRequest struct {
+	Status         string `json:"status"`
+	RequestedAt    string `json:"requested_at"`
+	CurrentVersion string `json:"current_version"`
+	LatestVersion  string `json:"latest_version"`
+	ReleaseName    string `json:"release_name,omitempty"`
+	ReleaseURL     string `json:"release_url,omitempty"`
+	BuildType      string `json:"build_type"`
+	UpdateMode     string `json:"update_mode"`
 }
 
 // ReleaseInfo contains GitHub release details
@@ -129,6 +146,7 @@ func (s *UpdateService) CheckUpdate(ctx context.Context, force bool) (*UpdateInf
 			HasUpdate:      false,
 			Warning:        err.Error(),
 			BuildType:      s.buildType,
+			UpdateMode:     s.updateMode(),
 		}, nil
 	}
 
@@ -147,6 +165,9 @@ func (s *UpdateService) PerformUpdate(ctx context.Context) error {
 
 	if !info.HasUpdate {
 		return fmt.Errorf("no update available")
+	}
+	if s.usesDockerUpdateAgent() {
+		return s.submitDockerUpdateRequest(info)
 	}
 
 	// Find matching archive and checksum for current platform
@@ -249,6 +270,83 @@ func (s *UpdateService) PerformUpdate(ctx context.Context) error {
 	return nil
 }
 
+func (s *UpdateService) NeedsRestartAfterUpdate() bool {
+	return !s.usesDockerUpdateAgent()
+}
+
+func (s *UpdateService) UpdateCompletionMessage() string {
+	if s.usesDockerUpdateAgent() {
+		return "Update request submitted. The custom Docker updater will build and restart the service automatically."
+	}
+	return "Update completed. Please restart the service."
+}
+
+func (s *UpdateService) usesDockerUpdateAgent() bool {
+	return strings.TrimSpace(os.Getenv(updateRequestFileEnv)) != ""
+}
+
+func (s *UpdateService) updateMode() string {
+	if s.usesDockerUpdateAgent() {
+		return "docker-agent"
+	}
+	return "binary"
+}
+
+func (s *UpdateService) submitDockerUpdateRequest(info *UpdateInfo) error {
+	requestPath := strings.TrimSpace(os.Getenv(updateRequestFileEnv))
+	if requestPath == "" {
+		return fmt.Errorf("%s is not configured", updateRequestFileEnv)
+	}
+
+	releaseName := ""
+	releaseURL := ""
+	if info.ReleaseInfo != nil {
+		releaseName = info.ReleaseInfo.Name
+		releaseURL = info.ReleaseInfo.HTMLURL
+	}
+
+	payload := DockerUpdateRequest{
+		Status:         "pending",
+		RequestedAt:    time.Now().UTC().Format(time.RFC3339),
+		CurrentVersion: info.CurrentVersion,
+		LatestVersion:  info.LatestVersion,
+		ReleaseName:    releaseName,
+		ReleaseURL:     releaseURL,
+		BuildType:      s.buildType,
+		UpdateMode:     s.updateMode(),
+	}
+
+	data, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal update request: %w", err)
+	}
+
+	dir := filepath.Dir(requestPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("create update request dir: %w", err)
+	}
+
+	tmp, err := os.CreateTemp(dir, ".sub2api-update-request-*")
+	if err != nil {
+		return fmt.Errorf("create update request temp file: %w", err)
+	}
+	tmpName := tmp.Name()
+	defer func() { _ = os.Remove(tmpName) }()
+
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("write update request: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close update request: %w", err)
+	}
+	if err := os.Rename(tmpName, requestPath); err != nil {
+		return fmt.Errorf("publish update request: %w", err)
+	}
+
+	return nil
+}
+
 // Rollback restores the previous version
 func (s *UpdateService) Rollback() error {
 	exePath, err := os.Executable()
@@ -301,8 +399,9 @@ func (s *UpdateService) fetchLatestRelease(ctx context.Context) (*UpdateInfo, er
 			HTMLURL:     release.HTMLURL,
 			Assets:      assets,
 		},
-		Cached:    false,
-		BuildType: s.buildType,
+		Cached:     false,
+		BuildType:  s.buildType,
+		UpdateMode: s.updateMode(),
 	}, nil
 }
 
@@ -493,6 +592,7 @@ func (s *UpdateService) getFromCache(ctx context.Context) (*UpdateInfo, error) {
 		ReleaseInfo:    cached.ReleaseInfo,
 		Cached:         true,
 		BuildType:      s.buildType,
+		UpdateMode:     s.updateMode(),
 	}, nil
 }
 

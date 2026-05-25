@@ -226,6 +226,43 @@
                 </button>
               </div>
 
+              <!-- Priority 2b: Docker-agent update queued -->
+              <div v-else-if="updateSuccess && updateQueued" class="space-y-2">
+                <div
+                  class="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-800/50 dark:bg-green-900/20"
+                >
+                  <div
+                    class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/50"
+                  >
+                    <Icon
+                      name="check"
+                      size="sm"
+                      :stroke-width="2"
+                      class="text-green-600 dark:text-green-400"
+                    />
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <p class="text-sm font-medium text-green-700 dark:text-green-300">
+                      {{ t('version.updateQueued') }}
+                    </p>
+                    <p class="text-xs text-green-600/70 dark:text-green-400/70">
+                      {{ t('version.updateQueuedHint') }}
+                    </p>
+                  </div>
+                </div>
+
+                <a
+                  v-if="releaseInfo?.html_url && releaseInfo.html_url !== '#'"
+                  :href="releaseInfo.html_url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="flex items-center justify-center gap-1 text-xs text-gray-500 transition-colors hover:text-gray-700 dark:text-dark-400 dark:hover:text-dark-200"
+                >
+                  {{ t('version.viewChangelog') }}
+                  <Icon name="externalLink" size="xs" :stroke-width="2" />
+                </a>
+              </div>
+
               <!-- Priority 3: Update available for source build - show git pull hint -->
               <div v-else-if="hasUpdate && !isReleaseBuild" class="space-y-2">
                 <a
@@ -413,6 +450,7 @@ const buildType = computed(() => appStore.buildType)
 const updating = ref(false)
 const restarting = ref(false)
 const needRestart = ref(false)
+const updateQueued = ref(false)
 const updateError = ref('')
 const updateSuccess = ref(false)
 const restartCountdown = ref(0)
@@ -435,6 +473,7 @@ async function refreshVersion(force = true) {
   updateError.value = ''
   updateSuccess.value = false
   needRestart.value = false
+  updateQueued.value = false
 
   await appStore.fetchVersion(force)
 }
@@ -450,6 +489,7 @@ async function handleUpdate() {
     const result = await performUpdate()
     updateSuccess.value = true
     needRestart.value = result.need_restart
+    updateQueued.value = !!result.update_queued
     // Clear version cache to reflect update completed
     appStore.clearVersionCache()
   } catch (error: unknown) {

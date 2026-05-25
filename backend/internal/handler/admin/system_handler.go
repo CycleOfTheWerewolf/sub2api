@@ -71,11 +71,13 @@ func (h *SystemHandler) PerformUpdate(c *gin.Context) {
 			return nil, err
 		}
 		succeeded = true
+		needRestart := h.updateSvc.NeedsRestartAfterUpdate()
 
 		return gin.H{
-			"message":      "Update completed. Please restart the service.",
-			"need_restart": true,
-			"operation_id": lock.OperationID(),
+			"message":       h.updateSvc.UpdateCompletionMessage(),
+			"need_restart":  needRestart,
+			"update_queued": !needRestart,
+			"operation_id":  lock.OperationID(),
 		}, nil
 	})
 }

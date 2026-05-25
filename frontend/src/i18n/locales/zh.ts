@@ -6538,6 +6538,8 @@ export default {
     updateNow: '立即更新',
     updating: '正在更新...',
     updateComplete: '更新完成',
+    updateQueued: '更新已提交',
+    updateQueuedHint: '自定义 Docker 更新器会自动构建并重启服务。',
     updateFailed: '更新失败',
     restartRequired: '请重启服务以应用更新',
     restartNow: '立即重启',

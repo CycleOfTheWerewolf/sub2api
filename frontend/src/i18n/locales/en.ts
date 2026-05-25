@@ -6380,6 +6380,8 @@ export default {
     updateNow: 'Update Now',
     updating: 'Updating...',
     updateComplete: 'Update Complete',
+    updateQueued: 'Update Queued',
+    updateQueuedHint: 'The custom Docker updater will build and restart automatically.',
     updateFailed: 'Update Failed',
     restartRequired: 'Please restart the service to apply the update',
     restartNow: 'Restart Now',
