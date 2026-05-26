@@ -3240,6 +3240,11 @@ export default {
       apiKeyRequired: 'API Key *',
       apiKeyPlaceholder: 'sk-ant-api03-...',
       apiKeyHint: 'Your Claude Console API Key',
+
+      deepseek: {
+        baseUrlHint: 'Leave default for official DeepSeek API',
+        apiKeyHint: 'Your DeepSeek API Key'
+      },
       // OpenAI specific hints
       openai: {
         baseUrlHint: 'Leave default for official OpenAI API',

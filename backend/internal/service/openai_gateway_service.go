@@ -22,6 +22,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
@@ -1292,6 +1293,38 @@ func noAvailableOpenAISelectionError(requestedModel string, compactBlocked bool)
 
 // openAICompactSupportTier classifies an OpenAI account by compact capability.
 // 0 = explicitly unsupported, 1 = unknown / not yet probed, 2 = explicitly supported.
+func openAICompatibleGatewayPlatformFromContext(ctx context.Context) string {
+	if ctx != nil {
+		if forcePlatform, ok := ctx.Value(ctxkey.ForcePlatform).(string); ok && strings.TrimSpace(forcePlatform) == PlatformDeepSeek {
+			return PlatformDeepSeek
+		}
+		if group, ok := ctx.Value(ctxkey.Group).(*Group); ok && group != nil && group.Platform == PlatformDeepSeek {
+			return PlatformDeepSeek
+		}
+	}
+	return PlatformOpenAI
+}
+
+func isOpenAICompatibleGatewayAccount(account *Account) bool {
+	if account == nil {
+		return false
+	}
+	if account.Platform == PlatformOpenAI {
+		return true
+	}
+	return account.Platform == PlatformDeepSeek && account.Type == AccountTypeAPIKey
+}
+
+func ShouldUseOpenAIResponsesAPIForAccount(account *Account) bool {
+	if account != nil && account.Platform == PlatformDeepSeek {
+		return false
+	}
+	if account == nil {
+		return true
+	}
+	return openai_compat.ShouldUseResponsesAPI(account.Extra)
+}
+
 func openAICompactSupportTier(account *Account) int {
 	if account == nil || !account.IsOpenAI() {
 		return 0
@@ -1309,7 +1342,7 @@ func openAICompactSupportTier(account *Account) int {
 // isOpenAIAccountEligibleForRequest centralises the schedulable / OpenAI / model /
 // compact-support checks used during account selection.
 func isOpenAIAccountEligibleForRequest(account *Account, requestedModel string, requireCompact bool) bool {
-	if account == nil || !account.IsSchedulable() || !account.IsOpenAI() {
+	if account == nil || !account.IsSchedulable() || !isOpenAICompatibleGatewayAccount(account) {
 		return false
 	}
 	if requestedModel != "" && !account.IsModelSupported(requestedModel) {
@@ -1880,18 +1913,19 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 }
 
 func (s *OpenAIGatewayService) listSchedulableAccounts(ctx context.Context, groupID *int64) ([]Account, error) {
+	platform := openAICompatibleGatewayPlatformFromContext(ctx)
 	if s.schedulerSnapshot != nil {
-		accounts, _, err := s.schedulerSnapshot.ListSchedulableAccounts(ctx, groupID, PlatformOpenAI, false)
+		accounts, _, err := s.schedulerSnapshot.ListSchedulableAccounts(ctx, groupID, platform, false)
 		return accounts, err
 	}
 	var accounts []Account
 	var err error
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
-		accounts, err = s.accountRepo.ListSchedulableByPlatform(ctx, PlatformOpenAI)
+		accounts, err = s.accountRepo.ListSchedulableByPlatform(ctx, platform)
 	} else if groupID != nil {
-		accounts, err = s.accountRepo.ListSchedulableByGroupIDAndPlatform(ctx, *groupID, PlatformOpenAI)
+		accounts, err = s.accountRepo.ListSchedulableByGroupIDAndPlatform(ctx, *groupID, platform)
 	} else {
-		accounts, err = s.accountRepo.ListSchedulableUngroupedByPlatform(ctx, PlatformOpenAI)
+		accounts, err = s.accountRepo.ListSchedulableUngroupedByPlatform(ctx, platform)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("query accounts failed: %w", err)
@@ -2089,7 +2123,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	reqModel, reqStream, promptCacheKey := extractOpenAIRequestMetaFromBody(body)
 	originalModel := reqModel
 
-	if account.Type == AccountTypeAPIKey && !openai_compat.ShouldUseResponsesAPI(account.Extra) {
+	if account.Type == AccountTypeAPIKey && !ShouldUseOpenAIResponsesAPIForAccount(account) {
 		return s.forwardResponsesViaRawChatCompletions(ctx, c, account, body)
 	}
 
@@ -4092,7 +4126,7 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 
 	if status, errType, errMsg, matched := applyErrorPassthroughRule(
 		c,
-		PlatformOpenAI,
+		account.Platform,
 		resp.StatusCode,
 		body,
 		http.StatusBadGateway,

@@ -17,6 +17,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/deepseek"
 	pkgerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
 	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
@@ -987,6 +988,14 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"object": "list",
 			"data":   geminicli.DefaultModels,
+		})
+		return
+	}
+
+	if platform == service.PlatformDeepSeek {
+		c.JSON(http.StatusOK, gin.H{
+			"object": "list",
+			"data":   deepseek.DefaultModels,
 		})
 		return
 	}

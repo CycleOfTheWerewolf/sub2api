@@ -101,6 +101,7 @@ const qwenModels = [
 // DeepSeek
 const deepseekModels = [
   'deepseek-chat', 'deepseek-coder', 'deepseek-reasoner',
+  'deepseek-v4-flash', 'deepseek-v4-pro',
   'deepseek-v3', 'deepseek-v3-0324',
   'deepseek-r1', 'deepseek-r1-0528',
   'deepseek-r1-distill-qwen-32b', 'deepseek-r1-distill-qwen-14b', 'deepseek-r1-distill-qwen-7b',
@@ -344,6 +345,13 @@ export const commonErrorCodes = [
   { value: 529, label: 'Overloaded' }
 ]
 
+
+const deepseekPresetMappings = [
+  { label: 'DeepSeek Flash', from: 'gpt-5.4', to: 'deepseek-v4-flash', color: 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-400' },
+  { label: 'DeepSeek Pro', from: 'gpt-5.4', to: 'deepseek-v4-pro', color: 'bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-400' },
+  { label: 'Codex → Pro', from: 'gpt-5.3-codex', to: 'deepseek-v4-pro', color: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400' }
+]
+
 // =====================
 // 辅助函数
 // =====================
@@ -380,6 +388,7 @@ export function getPresetMappingsByPlatform(platform: string) {
   if (platform === 'openai') return openaiPresetMappings
   if (platform === 'gemini') return geminiPresetMappings
   if (platform === 'antigravity') return antigravityPresetMappings
+  if (platform === 'deepseek') return deepseekPresetMappings
   if (platform === 'bedrock') return bedrockPresetMappings
   return anthropicPresetMappings
 }

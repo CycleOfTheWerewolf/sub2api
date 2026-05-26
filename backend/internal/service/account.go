@@ -14,6 +14,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/domain"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/deepseek"
 )
 
 type Account struct {
@@ -724,6 +725,16 @@ func (a *Account) GetBaseURL() string {
 		return ""
 	}
 	baseURL := a.GetCredential("base_url")
+	if a.Platform == PlatformDeepSeek {
+		if baseURL == "" {
+			return strings.TrimRight(deepseek.BaseURL, "/") + "/anthropic"
+		}
+		trimmed := strings.TrimRight(baseURL, "/")
+		if strings.HasSuffix(trimmed, "/anthropic") {
+			return trimmed
+		}
+		return trimmed + "/anthropic"
+	}
 	if baseURL == "" {
 		return "https://api.anthropic.com"
 	}
@@ -965,6 +976,10 @@ func (a *Account) IsOpenAI() bool {
 	return a.Platform == PlatformOpenAI
 }
 
+func (a *Account) IsDeepSeek() bool {
+	return a.Platform == PlatformDeepSeek
+}
+
 func (a *Account) IsAnthropic() bool {
 	return a.Platform == PlatformAnthropic
 }
@@ -978,6 +993,18 @@ func (a *Account) IsOpenAIApiKey() bool {
 }
 
 func (a *Account) GetOpenAIBaseURL() string {
+	if a == nil {
+		return ""
+	}
+	if a.Platform == PlatformDeepSeek {
+		if a.Type != AccountTypeAPIKey {
+			return ""
+		}
+		if baseURL := a.GetCredential("base_url"); baseURL != "" {
+			return baseURL
+		}
+		return deepseek.BaseURL
+	}
 	if !a.IsOpenAI() {
 		return ""
 	}
@@ -1012,14 +1039,14 @@ func (a *Account) GetOpenAIIDToken() string {
 }
 
 func (a *Account) GetOpenAIApiKey() string {
-	if !a.IsOpenAIApiKey() {
+	if a == nil || (a.Platform != PlatformOpenAI && a.Platform != PlatformDeepSeek) || a.Type != AccountTypeAPIKey {
 		return ""
 	}
 	return a.GetCredential("api_key")
 }
 
 func (a *Account) GetOpenAIUserAgent() string {
-	if !a.IsOpenAI() {
+	if a == nil || (a.Platform != PlatformOpenAI && a.Platform != PlatformDeepSeek) {
 		return ""
 	}
 	return a.GetCredential("user_agent")

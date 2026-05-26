@@ -19,9 +19,9 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/deepseek"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
 	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -180,7 +180,7 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 	}
 
 	// Route to platform-specific test method
-	if account.IsOpenAI() {
+	if account.IsOpenAI() || account.Platform == PlatformDeepSeek {
 		return s.testOpenAIAccountConnection(c, account, modelID, prompt, normalizeAccountTestMode(mode))
 	}
 
@@ -499,7 +499,11 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 	// Default to openai.DefaultTestModel for OpenAI testing
 	testModelID := modelID
 	if testModelID == "" {
-		testModelID = openai.DefaultTestModel
+		if account.Platform == PlatformDeepSeek {
+			testModelID = deepseek.DefaultTestModel
+		} else {
+			testModelID = openai.DefaultTestModel
+		}
 	}
 
 	// Align test routing with gateway behavior: OpenAI accounts apply normal
@@ -554,7 +558,7 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 		if err != nil {
 			return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid base URL: %s", err.Error()))
 		}
-		if !openai_compat.ShouldUseResponsesAPI(account.Extra) {
+		if !ShouldUseOpenAIResponsesAPIForAccount(account) {
 			return s.testOpenAIChatCompletionsConnection(c, account, testModelID, prompt, normalizedBaseURL, authToken)
 		}
 		apiURL = buildOpenAIResponsesURL(normalizedBaseURL)

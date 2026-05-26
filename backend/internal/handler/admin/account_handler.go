@@ -20,6 +20,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/deepseek"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
@@ -1940,6 +1941,37 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 					Type:        "model",
 					DisplayName: requestedModel,
 					CreatedAt:   "",
+				})
+			}
+		}
+		response.Success(c, models)
+		return
+	}
+
+	// Handle DeepSeek accounts
+	if account.Platform == service.PlatformDeepSeek {
+		mapping := account.GetModelMapping()
+		if len(mapping) == 0 {
+			response.Success(c, deepseek.DefaultModels)
+			return
+		}
+
+		var models []deepseek.Model
+		for requestedModel := range mapping {
+			var found bool
+			for _, dm := range deepseek.DefaultModels {
+				if dm.ID == requestedModel {
+					models = append(models, dm)
+					found = true
+					break
+				}
+			}
+			if !found {
+				models = append(models, deepseek.Model{
+					ID:          requestedModel,
+					Object:      "model",
+					Type:        "model",
+					DisplayName: requestedModel,
 				})
 			}
 		}

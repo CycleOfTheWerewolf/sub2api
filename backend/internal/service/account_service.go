@@ -416,6 +416,9 @@ func (s *AccountService) TestCredentials(ctx context.Context, id int64) error {
 	case PlatformOpenAI:
 		// TODO: 测试OpenAI API凭证
 		return nil
+	case PlatformDeepSeek:
+		// TODO: 测试DeepSeek API凭证
+		return nil
 	case PlatformGemini:
 		// TODO: 测试Gemini API凭证
 		return nil
