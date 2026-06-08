@@ -25,6 +25,8 @@ type SystemHandler struct {
 type systemUpdateService interface {
 	CheckUpdate(ctx context.Context, force bool) (*service.UpdateInfo, error)
 	PerformUpdate(ctx context.Context) error
+	NeedsRestartAfterUpdate() bool
+	UpdateCompletionMessage() string
 	Rollback() error
 }
 
